@@ -2,41 +2,10 @@ package server
 
 import (
 	"anmit007/go-redis/config"
-	"anmit007/go-redis/core"
-	"fmt"
 	"log"
 	"net"
 	"strconv"
-	"strings"
 )
-
-func readCommand(c net.Conn) (*core.RedisCmd, error) {
-	var buff []byte = make([]byte, 512)
-	n, err := c.Read(buff[:])
-	if err != nil {
-		return nil, err
-	}
-
-	tokens, err := core.DecodeArrayString(buff[:n])
-	if err != nil {
-		return nil, err
-	}
-	return &core.RedisCmd{
-		Cmd:  strings.ToUpper(tokens[0]),
-		Args: tokens[1:],
-	}, nil
-}
-
-func respondError(err error, c net.Conn) {
-	c.Write([]byte(fmt.Sprintf("-%s\r\n", err)))
-}
-
-func respond(cmd *core.RedisCmd, c net.Conn) {
-	err := core.EvalAndResponse(cmd, c)
-	if err != nil {
-		respondError(err, c)
-	}
-}
 
 func RunSyncTCPServer() {
 	log.Println("Starting the sync TCP server....")
