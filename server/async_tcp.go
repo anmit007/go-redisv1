@@ -106,33 +106,37 @@ func RunAsyncTCPServer() error {
 			fd := int(events[i].Ident)
 
 			if fd == serverFd {
-				clientFd, _, err := syscall.Accept(serverFd)
-				if err != nil {
-					log.Println("accept error", err)
-					continue
-				}
-				conn_clients++
-				log.Println("New client connected , Fd:", clientFd, " Total Clients :", conn_clients)
+				for {
+					clientFd, _, err := syscall.Accept(serverFd)
+					if err != nil {
+						if err == syscall.EWOULDBLOCK || err == syscall.EAGAIN {
+							break
+						}
+						log.Println("accept error", err)
+						break
+					}
+					conn_clients++
+					log.Println("New client connected , Fd:", clientFd, " Total Clients :", conn_clients)
 
-				if err := syscall.SetNonblock(clientFd, true); err != nil {
-					log.Println("SetNonblock error", err)
-					syscall.Close(clientFd)
-					continue
-				}
+					if err := syscall.SetNonblock(clientFd, true); err != nil {
+						log.Println("SetNonblock error", err)
+						syscall.Close(clientFd)
+						continue
+					}
 
-				clientChange := syscall.Kevent_t{
-					Ident:  uint64(clientFd),
-					Filter: syscall.EVFILT_READ,
-					Flags:  syscall.EV_ADD | syscall.EV_ENABLE,
-				}
+					clientChange := syscall.Kevent_t{
+						Ident:  uint64(clientFd),
+						Filter: syscall.EVFILT_READ,
+						Flags:  syscall.EV_ADD | syscall.EV_ENABLE,
+					}
 
-				_, err = syscall.Kevent(kqueueFd, []syscall.Kevent_t{clientChange}, nil, nil)
-				if err != nil {
-					log.Println("kevent add client error:", err)
-					syscall.Close(clientFd)
-					continue
+					_, err = syscall.Kevent(kqueueFd, []syscall.Kevent_t{clientChange}, nil, nil)
+					if err != nil {
+						log.Println("kevent add client error:", err)
+						syscall.Close(clientFd)
+						continue
+					}
 				}
-
 			} else {
 				comm := core.FdComm{Fd: fd}
 				cmd, err := readCommand(comm)
@@ -155,7 +159,4 @@ func RunAsyncTCPServer() error {
 		}
 
 	}
-
-	return nil
-
 }
