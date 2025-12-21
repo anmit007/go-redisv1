@@ -84,36 +84,34 @@ func decodeOne(data []byte) (interface{}, int, error) {
 	return nil, 0, errors.New("cmd not supported")
 }
 
-func Decode(data []byte) (interface{}, error) {
+func Decode(data []byte) ([]interface{}, error) {
 	if len(data) == 0 {
 		return nil, errors.New("no data")
 	}
-	value, _, err := decodeOne(data)
-	return value, err
+	var values []interface{} = make([]interface{}, 0)
+	var index int = 0
+	for index < len(data) {
+		value, delta, err := decodeOne(data[index:])
+		if err != nil {
+			return values, err
+		}
+		index = index + delta
+		values = append(values, value)
+	}
+	return values, nil
 }
 
-func DecodeArrayString(data []byte) ([]string, error) {
-	value, err := Decode(data)
-	if err != nil {
-		return nil, err
-	}
-	ts := value.([]interface{})
-	tokens := make([]string, len(ts))
-	for i := range tokens {
-		tokens[i] = ts[i].(string)
-	}
-	return tokens, nil
-}
-
-func Encode(value interface{}, isSimpleString bool) []byte {
+func Encode(value interface{}, isSimple bool) []byte {
 	switch v := value.(type) {
 	case string:
-		if isSimpleString {
+		if isSimple {
 			return []byte(fmt.Sprintf("+%s\r\n", v))
 		}
 		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v))
-	case int64:
+	case int, int8, int16, int32, int64:
 		return []byte(fmt.Sprintf(":%d\r\n", v))
+	case error:
+		return []byte(fmt.Sprintf("-%s\r\n", v))
 	default:
 		return RESP_NIL
 	}

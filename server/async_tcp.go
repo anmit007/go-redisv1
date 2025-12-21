@@ -3,42 +3,52 @@ package server
 import (
 	"anmit007/go-redis/config"
 	"anmit007/go-redis/core"
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var conn_clients = 0
+var cronFrequency time.Duration = 1 * time.Second
+var lastCronExecTime time.Time = time.Now()
 
-func readCommand(c io.ReadWriter) (*core.RedisCmd, error) {
+func toArrayString(ai []interface{}) ([]string, error) {
+	as := make([]string, len(ai))
+	for i := range ai {
+		as[i] = ai[i].(string)
+	}
+	return as, nil
+}
+
+func readCommands(c io.ReadWriter) (core.RedisCmds, error) {
 	var buff []byte = make([]byte, 512)
 	n, err := c.Read(buff[:])
 	if err != nil {
 		return nil, err
 	}
-
-	tokens, err := core.DecodeArrayString(buff[:n])
+	values, err := core.Decode(buff[:n])
 	if err != nil {
 		return nil, err
 	}
-	return &core.RedisCmd{
-		Cmd:  strings.ToUpper(tokens[0]),
-		Args: tokens[1:],
-	}, nil
-}
-
-func respondError(err error, c io.ReadWriter) {
-	c.Write([]byte(fmt.Sprintf("-%s\r\n", err)))
-}
-
-func respond(cmd *core.RedisCmd, c io.ReadWriter) {
-	err := core.EvalAndResponse(cmd, c)
-	if err != nil {
-		respondError(err, c)
+	var cmds []*core.RedisCmd = make([]*core.RedisCmd, 0)
+	for _, val := range values {
+		tokens, err := toArrayString(val.([]interface{}))
+		if err != nil {
+			return nil, err
+		}
+		cmds = append(cmds, &core.RedisCmd{
+			Cmd:  strings.ToUpper(tokens[0]),
+			Args: tokens[1:],
+		})
 	}
+	return cmds, nil
+
+}
+func respond(cmds core.RedisCmds, c io.ReadWriter) {
+	core.EvalAndResponse(cmds, c)
 }
 func RunAsyncTCPServer() error {
 	log.Println("Starting the async TCP server on ", config.Host, ":", config.Port)
@@ -90,6 +100,12 @@ func RunAsyncTCPServer() error {
 	log.Println("Kqueue initialized, waiting for connections....")
 
 	for {
+
+		if time.Now().After(lastCronExecTime.Add(cronFrequency)) {
+			core.DeleteExpiredKeys()
+			lastCronExecTime = time.Now()
+		}
+
 		nevents, err := syscall.Kevent(
 			kqueueFd,
 			nil,
@@ -139,7 +155,7 @@ func RunAsyncTCPServer() error {
 				}
 			} else {
 				comm := core.FdComm{Fd: fd}
-				cmd, err := readCommand(comm)
+				cmds, err := readCommands(comm)
 				if err != nil {
 					log.Println("Client disconnected with fd:", fd)
 
@@ -154,7 +170,7 @@ func RunAsyncTCPServer() error {
 					continue
 
 				}
-				respond(cmd, comm)
+				respond(cmds, comm)
 			}
 		}
 
