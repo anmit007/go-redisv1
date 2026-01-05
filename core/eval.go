@@ -98,6 +98,7 @@ func evalGet(args []string) []byte {
 	if obj.ExpiresAt != -1 && obj.ExpiresAt <= time.Now().UnixMilli() {
 		return RESP_NIL
 	}
+
 	return Encode(obj.Value, false)
 }
 

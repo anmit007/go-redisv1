@@ -8,8 +8,10 @@ import (
 var store map[string]*Obj
 
 type Obj struct {
-	Value     interface{}
-	ExpiresAt int64
+	Value         interface{}
+	ExpiresAt     int64
+	LfuLogWeight  uint8  // probabiltic counter (8 bits can count upto million)
+	LastDecayedAt uint16 // decay weight
 }
 
 func init() {
@@ -23,27 +25,35 @@ func NewObj(value interface{}, durationMs int64) *Obj {
 		expiresAt = time.Now().UnixMilli() + durationMs
 	}
 	return &Obj{
-		Value:     value,
-		ExpiresAt: expiresAt,
+		Value:        value,
+		ExpiresAt:    expiresAt,
+		LfuLogWeight: uint8(1),
 	}
 
 }
 
 func Put(k string, obj *Obj) {
-	if len(store) >= config.MAX_KEYS {
+	_, keyExists := store[k]
+	if !keyExists && len(store) >= config.MAX_KEYS {
 		evict()
 	}
+
 	store[k] = obj
+	decayWeight(k)
+	incrementLfuLogWeight(k)
 }
 
 func Get(k string) *Obj {
 	v := store[k]
+
 	if v != nil {
 		if v.ExpiresAt != -1 && v.ExpiresAt <= time.Now().UnixMilli() {
 			delete(store, k)
 			return nil
 		}
 	}
+	decayWeight(k)
+	incrementLfuLogWeight(k)
 	return v
 }
 func Del(k string) bool {

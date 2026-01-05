@@ -1,3 +1,5 @@
+//go:build !windows
+
 package core
 
 import "syscall"
@@ -13,3 +15,4 @@ func (f FdComm) Write(b []byte) (int, error) {
 func (f FdComm) Read(b []byte) (int, error) {
 	return syscall.Read(f.Fd, b)
 }
+
