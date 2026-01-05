@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log"
 	"strconv"
 	"time"
 )
@@ -89,7 +90,7 @@ func evalGet(args []string) []byte {
 		return Encode(errors.New("(error) ERR wrong number of arguments for 'get' command"), false)
 	}
 	var key string = args[0]
-
+	log.Println("WORKS")
 	obj := Get(key)
 
 	if obj == nil {

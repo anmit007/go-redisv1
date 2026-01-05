@@ -27,7 +27,7 @@ func NewObj(value interface{}, durationMs int64) *Obj {
 	return &Obj{
 		Value:        value,
 		ExpiresAt:    expiresAt,
-		LfuLogWeight: uint8(1),
+		LfuLogWeight: uint8(5),
 	}
 
 }
@@ -44,13 +44,13 @@ func Put(k string, obj *Obj) {
 }
 
 func Get(k string) *Obj {
-	v := store[k]
-
-	if v != nil {
-		if v.ExpiresAt != -1 && v.ExpiresAt <= time.Now().UnixMilli() {
-			delete(store, k)
-			return nil
-		}
+	v, ok := store[k]
+	if !ok {
+		return nil
+	}
+	if v.ExpiresAt != -1 && v.ExpiresAt <= time.Now().UnixMilli() {
+		delete(store, k)
+		return nil
 	}
 	decayWeight(k)
 	incrementLfuLogWeight(k)

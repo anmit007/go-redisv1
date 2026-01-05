@@ -41,22 +41,20 @@ func evictLFU() {
 	}
 }
 
-func getProbabilityDivisior(lfuWeight uint8) float64 {
-	if lfuWeight > 62 {
-		return float64(int64(1) << 62)
-	}
-	return float64(int64(1) << int(lfuWeight))
-}
 func incrementLfuLogWeight(key string) {
 	obj := store[key]
 	if obj.LfuLogWeight == 255 {
 		return
 	}
-	lfuWeight := obj.LfuLogWeight
-	probability := 1 / getProbabilityDivisior(lfuWeight)
+	baseval := float64(obj.LfuLogWeight) - 5.0
+	if baseval < 0 {
+		baseval = 0
+	}
+
+	probability := 1.0 / (baseval*config.LFU_LOG_BASE + 1)
 	random := rand.Float64()
 	if random < probability {
-		obj.LfuLogWeight = lfuWeight + 1
+		obj.LfuLogWeight++
 		store[key] = obj
 	}
 }
@@ -68,15 +66,17 @@ func decayWeight(key string) {
 	if lastDecayedAt == 0 {
 		obj.LastDecayedAt = currentTime
 		lastDecayedAt = currentTime
+		return
 	}
-	if currentTime-lastDecayedAt > uint16(config.LFU_DECAY_TIME) {
-		if obj.LfuLogWeight <= 10 {
-			obj.LfuLogWeight = obj.LfuLogWeight - 1
+	elapsed := currentTime - lastDecayedAt
+	numPeriods := elapsed / uint16(config.LFU_DECAY_TIME)
+	if numPeriods > 0 {
+		if uint16(obj.LfuLogWeight) > numPeriods {
+			obj.LfuLogWeight -= uint8(numPeriods)
 		} else {
-			obj.LfuLogWeight = obj.LfuLogWeight / 2
+			obj.LfuLogWeight = 0
 		}
 		obj.LastDecayedAt = currentTime
 		store[key] = obj
-		log.Println("decaying weight for key:", key, "from", lastDecayedAt, "to", currentTime, "weight:", store[key].LfuLogWeight)
 	}
 }
