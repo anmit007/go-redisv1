@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"strconv"
 	"time"
 )
@@ -33,6 +32,12 @@ func EvalAndResponse(cmds RedisCmds, c io.ReadWriter) {
 			buff.Write(evalDEL(cmd.Args))
 		case "EXPIRE":
 			buff.Write(evalExpire(cmd.Args))
+		case "BGREWRITEAOF":
+			buff.Write(evalBGREWRITEAOF(cmd.Args))
+		case "CONFIG":
+			buff.Write([]byte("*0\r\n"))
+		case "COMMAND":
+			buff.Write([]byte("*0\r\n"))
 		default:
 			buff.Write(evalPing(cmd.Args))
 		}
@@ -90,7 +95,6 @@ func evalGet(args []string) []byte {
 		return Encode(errors.New("(error) ERR wrong number of arguments for 'get' command"), false)
 	}
 	var key string = args[0]
-	log.Println("WORKS")
 	obj := Get(key)
 
 	if obj == nil {
@@ -151,4 +155,9 @@ func evalExpire(args []string) []byte {
 	}
 	obj.ExpiresAt = time.Now().UnixMilli() + exDurationSec*1000
 	return RESP_ONE
+}
+
+func evalBGREWRITEAOF(args []string) []byte {
+	BGRewriteAOF()
+	return RESP_OK
 }

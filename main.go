@@ -2,6 +2,7 @@ package main
 
 import (
 	"anmit007/go-redis/config"
+	"anmit007/go-redis/core"
 	"anmit007/go-redis/server"
 	"flag"
 	"log"
@@ -16,5 +17,8 @@ func setupFlags() {
 func main() {
 	setupFlags()
 	log.Println("Starting the go-redis server....", config.Host, config.Port)
+	if err := core.LoadAOF(); err != nil {
+		log.Println("Error loading AOF file", err)
+	}
 	server.RunAsyncTCPServer()
 }

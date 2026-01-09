@@ -99,6 +99,9 @@ func RunAsyncTCPServer() error {
 				comm := core.FdComm{Fd: fd}
 				cmds, err := readCommands(comm)
 				if err != nil {
+					if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+						continue
+					}
 					log.Println("Client disconnected with fd:", fd)
 					syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_DEL, fd, nil)
 					syscall.Close(fd)

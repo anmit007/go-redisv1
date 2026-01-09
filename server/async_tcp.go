@@ -1,6 +1,7 @@
 package server
 
 import (
+	"anmit007/go-redis/config"
 	"anmit007/go-redis/core"
 	"io"
 	"strings"
@@ -10,6 +11,8 @@ import (
 var conn_clients = 0
 var cronFrequency time.Duration = 1 * time.Second
 var lastCronExecTime time.Time = time.Now()
+var lastAOFRewriteTime time.Time = time.Now()
+var aofRewriteFrequency time.Duration = config.BGRewriteAOFInterval
 
 func toArrayString(ai []interface{}) ([]string, error) {
 	as := make([]string, len(ai))
@@ -20,11 +23,15 @@ func toArrayString(ai []interface{}) ([]string, error) {
 }
 
 func readCommands(c io.ReadWriter) (core.RedisCmds, error) {
-	var buff []byte = make([]byte, 512)
+	var buff []byte = make([]byte, 8192)
 	n, err := c.Read(buff[:])
 	if err != nil {
 		return nil, err
 	}
+	if n == 0 {
+		return nil, io.EOF
+	}
+
 	values, err := core.Decode(buff[:n])
 	if err != nil {
 		return nil, err
@@ -48,10 +55,15 @@ func respond(cmds core.RedisCmds, c io.ReadWriter) {
 }
 
 func shouldRunCron() bool {
-	if time.Now().After(lastCronExecTime.Add(cronFrequency)) {
+	now := time.Now()
+	if now.After(lastCronExecTime.Add(cronFrequency)) {
 		core.DeleteExpiredKeys()
-		lastCronExecTime = time.Now()
-		return true
+		lastCronExecTime = now
 	}
-	return false
+
+	if now.After(lastAOFRewriteTime.Add(aofRewriteFrequency)) {
+		core.BGRewriteAOF()
+		lastAOFRewriteTime = now
+	}
+	return true
 }

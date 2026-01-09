@@ -3,6 +3,7 @@ package server
 import (
 	"anmit007/go-redis/config"
 	"anmit007/go-redis/core"
+	"errors"
 	"log"
 	"net"
 	"syscall"
@@ -103,7 +104,11 @@ func RunAsyncTCPServer() error {
 				comm := core.FdComm{Fd: fd}
 				cmds, err := readCommands(comm)
 				if err != nil {
-					log.Println("Client disconnected with fd:", fd)
+
+					if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+						continue
+					}
+					log.Println("Client disconnected with fd:", fd, "error:", err)
 
 					deleteChange := syscall.Kevent_t{
 						Ident:  uint64(fd),
