@@ -9,19 +9,11 @@ import (
 var store map[string]*Obj
 var storeMu sync.RWMutex
 
-type Obj struct {
-	Value         interface{}
-	ExpiresAt     int64
-	LfuLogWeight  uint8  // probabiltic counter (8 bits can count upto million)
-	LastDecayedAt uint16 // decay weight
-
-}
-
 func init() {
 	store = make(map[string]*Obj)
 }
 
-func NewObj(value interface{}, durationMs int64) *Obj {
+func NewObj(value interface{}, durationMs int64, oType uint8, oEncoding uint8) *Obj {
 
 	var expiresAt int64 = -1
 	if durationMs > 0 {
@@ -31,6 +23,7 @@ func NewObj(value interface{}, durationMs int64) *Obj {
 		Value:        value,
 		ExpiresAt:    expiresAt,
 		LfuLogWeight: uint8(5),
+		TypeEncoding: oType | oEncoding,
 	}
 
 }

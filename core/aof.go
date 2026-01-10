@@ -2,12 +2,16 @@ package core
 
 import (
 	"anmit007/go-redis/config"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
 )
+
+var aofFile *os.File
+var aofBuffer bytes.Buffer
 
 func dumpKey(fp *os.File, k string, v *Obj) {
 	cmd := fmt.Sprintf("SET %s %s", k, v.Value)
@@ -44,13 +48,49 @@ func LoadAOF() error {
 		}
 
 		cmd := strings.ToUpper(args[0])
+		// Use internal functions that don't call AppendAOF to avoid duplicating data
 		switch cmd {
 		case "SET":
-			evalSet(args[1:])
+			internalSet(args[1:])
 		case "DEL":
-			evalDEL(args[1:])
+			internalDEL(args[1:])
+		case "EXPIRE":
+			internalExpire(args[1:])
+		case "INCR":
+			internalIncr(args[1:])
 		}
 
 	}
 	return nil
+}
+
+func InitAOF() error {
+	var err error
+	aofFile, err = os.OpenFile(config.AOFFILEPATH, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	return err
+}
+
+func CloseAOF() {
+	FlushAOF()
+	if aofFile != nil {
+
+		aofFile.Close()
+	}
+}
+
+func AppendAOF(cmd string, args []string) {
+
+	tokens := append([]string{cmd}, args...)
+	aofBuffer.Write(Encode(tokens, false))
+
+}
+
+func FlushAOF() {
+	if aofBuffer.Len() == 0 {
+		return
+	}
+	aofFile.Write(aofBuffer.Bytes())
+	aofFile.Sync()
+	aofBuffer.Reset()
+
 }

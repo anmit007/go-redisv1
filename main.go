@@ -20,5 +20,9 @@ func main() {
 	if err := core.LoadAOF(); err != nil {
 		log.Println("Error loading AOF file", err)
 	}
+	if err := core.InitAOF(); err != nil {
+		log.Println("Error initializing AOF file", err)
+	}
+	defer core.CloseAOF()
 	server.RunAsyncTCPServer()
 }

@@ -65,5 +65,6 @@ func shouldRunCron() bool {
 		core.BGRewriteAOF()
 		lastAOFRewriteTime = now
 	}
+	core.FlushAOF()
 	return true
 }

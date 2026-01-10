@@ -34,10 +34,13 @@ func EvalAndResponse(cmds RedisCmds, c io.ReadWriter) {
 			buff.Write(evalExpire(cmd.Args))
 		case "BGREWRITEAOF":
 			buff.Write(evalBGREWRITEAOF(cmd.Args))
+		case "INCR":
+			buff.Write(evalIncr(cmd.Args))
 		case "CONFIG":
 			buff.Write([]byte("*0\r\n"))
 		case "COMMAND":
 			buff.Write([]byte("*0\r\n"))
+
 		default:
 			buff.Write(evalPing(cmd.Args))
 		}
@@ -58,13 +61,13 @@ func evalPing(args []string) []byte {
 	}
 	return b
 }
-
-func evalSet(args []string) []byte {
+func internalSet(args []string) []byte {
 	if len(args) <= 1 {
 		return Encode(errors.New("(error) ERR wrong number of arguments for 'set' command"), false)
 	}
 
 	var key, value string
+	oType, oEnc := tryObjectEncoding(value)
 	var exDurationMs int64 = -1
 
 	key, value = args[0], args[1]
@@ -86,8 +89,16 @@ func evalSet(args []string) []byte {
 		}
 	}
 
-	Put(key, NewObj(value, exDurationMs))
+	Put(key, NewObj(value, exDurationMs, oType, oEnc))
 	return RESP_OK
+}
+
+func evalSet(args []string) []byte {
+	result := internalSet(args)
+	if result != nil && bytes.Equal(result, RESP_OK) {
+		AppendAOF("SET", args)
+	}
+	return result
 }
 
 func evalGet(args []string) []byte {
@@ -127,7 +138,7 @@ func evalTTL(args []string) []byte {
 	return (Encode(int64(durationMs/1000), false))
 }
 
-func evalDEL(args []string) []byte {
+func internalDEL(args []string) []byte {
 	var cntDeleted int = 0
 	for _, key := range args {
 		if ok := Del(key); ok {
@@ -135,10 +146,43 @@ func evalDEL(args []string) []byte {
 		}
 	}
 	return (Encode(cntDeleted, false))
-
 }
 
-func evalExpire(args []string) []byte {
+func evalDEL(args []string) []byte {
+	result := internalDEL(args)
+	AppendAOF("DEL", args)
+	return result
+}
+
+func internalIncr(args []string) []byte {
+	if len(args) != 1 {
+		return Encode(errors.New("(error) ERR wrong number of arguments for 'incr' command"), false)
+	}
+	var key string = args[0]
+	obj := Get(key)
+	if obj == nil {
+		obj = NewObj("0", -1, OBJ_TYPE_STRING, OBJ_ENCODING_INT)
+		Put(key, obj)
+	}
+	if err := assertType(obj.TypeEncoding, OBJ_TYPE_STRING); err != nil {
+		return Encode(err, false)
+	}
+	if err := assertEncoding(obj.TypeEncoding, OBJ_ENCODING_INT); err != nil {
+		return Encode(err, false)
+	}
+	i, _ := strconv.ParseInt(obj.Value.(string), 10, 64)
+	i++
+	obj.Value = strconv.FormatInt(i, 10)
+	return Encode(obj.Value, false)
+}
+
+func evalIncr(args []string) []byte {
+	result := internalIncr(args)
+	AppendAOF("INCR", args)
+	return result
+}
+
+func internalExpire(args []string) []byte {
 	if len(args) <= 1 {
 		return Encode(errors.New("(error) ERR wrong number of arguments for 'expire' command"), false)
 	}
@@ -155,6 +199,14 @@ func evalExpire(args []string) []byte {
 	}
 	obj.ExpiresAt = time.Now().UnixMilli() + exDurationSec*1000
 	return RESP_ONE
+}
+
+func evalExpire(args []string) []byte {
+	result := internalExpire(args)
+	if bytes.Equal(result, RESP_ONE) {
+		AppendAOF("EXPIRE", args)
+	}
+	return result
 }
 
 func evalBGREWRITEAOF(args []string) []byte {
