@@ -10,7 +10,14 @@ import (
 var randSource = rand.NewSource(time.Now().UnixNano())
 
 func evict() {
-	evictLFU()
+	switch config.EVICTION_STRATEGY {
+	case "allkeys-lru":
+		evictALLkeyRandom()
+	case "allkeys-lfu":
+		evictLFU()
+	case "simple-first":
+		evictFirst()
+	}
 }
 
 func evictFirst() {
@@ -78,5 +85,16 @@ func decayWeight(key string) {
 		}
 		obj.LastDecayedAt = currentTime
 		store[key] = obj
+	}
+}
+
+func evictALLkeyRandom() {
+	evictCount := int64(config.EVICTION_RATIO * float64(len(store)))
+	for k := range store {
+		Del(k)
+		evictCount--
+		if evictCount <= 0 {
+			break
+		}
 	}
 }

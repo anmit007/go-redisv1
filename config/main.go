@@ -10,3 +10,5 @@ var LFU_LOG_BASE float64 = 10
 var AOFFILEPATH string = "./go-redis.aof"
 var BGRewriteAOFInterval = 100 * time.Second
 var AOF_FYSNC_POLICY string = "always"
+var EVICTION_STRATEGY string = "allkeys-random"
+var EVICTION_RATIO float64 = 0.4

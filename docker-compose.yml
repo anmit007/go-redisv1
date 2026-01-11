@@ -1,0 +1,15 @@
+services:
+  go-redis:
+    build: .
+    container_name: go-redis
+    ports:
+      - "7379:7379"
+    volumes:
+      # Persist AOF file on host for data persistence
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7379"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

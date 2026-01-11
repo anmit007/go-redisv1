@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -40,7 +41,12 @@ func EvalAndResponse(cmds RedisCmds, c io.ReadWriter) {
 			buff.Write([]byte("*0\r\n"))
 		case "COMMAND":
 			buff.Write([]byte("*0\r\n"))
-
+		case "CLIENT":
+			buff.Write(evalCLIENT(cmd.Args))
+		case "LATENCY":
+			buff.Write(evalLATENCY(cmd.Args))
+		case "INFO":
+			buff.Write(evalInfo(cmd.Args))
 		default:
 			buff.Write(evalPing(cmd.Args))
 		}
@@ -212,4 +218,22 @@ func evalExpire(args []string) []byte {
 func evalBGREWRITEAOF(args []string) []byte {
 	BGRewriteAOF()
 	return RESP_OK
+}
+
+func evalInfo(args []string) []byte {
+	var info []byte
+	buff := bytes.NewBuffer(info)
+	buff.WriteString("# Keyspace\r\n")
+	for i := range KeyspaceStat {
+		buff.WriteString(fmt.Sprintf("db%d:keys=%d,expires=0,avg_ttl=0\r\n", i, KeyspaceStat[i]["keys"]))
+	}
+	return Encode(buff.String(), false)
+}
+
+func evalCLIENT(args []string) []byte {
+	return RESP_OK
+}
+
+func evalLATENCY(args []string) []byte {
+	return Encode([]string{}, false)
 }

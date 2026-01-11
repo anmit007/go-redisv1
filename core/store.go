@@ -37,6 +37,10 @@ func Put(k string, obj *Obj) {
 	}
 
 	store[k] = obj
+	if KeyspaceStat[0] == nil {
+		KeyspaceStat[0] = make(map[string]int)
+	}
+	KeyspaceStat[0]["keys"]++
 	decayWeight(k)
 	incrementLfuLogWeight(k)
 }
@@ -49,7 +53,7 @@ func Get(k string) *Obj {
 		return nil
 	}
 	if v.ExpiresAt != -1 && v.ExpiresAt <= time.Now().UnixMilli() {
-		delete(store, k)
+		Del(k)
 		return nil
 	}
 	decayWeight(k)
@@ -61,6 +65,7 @@ func Del(k string) bool {
 	defer storeMu.Unlock()
 	if _, ok := store[k]; ok {
 		delete(store, k)
+		KeyspaceStat[0]["keys"]--
 		return true
 	}
 	return false

@@ -12,7 +12,7 @@ func expireSample() float32 {
 		if obj.ExpiresAt != -1 {
 			limit--
 			if obj.ExpiresAt <= time.Now().UnixMilli() {
-				delete(store, key)
+				Del(key)
 				expiredCount++
 			}
 		}
