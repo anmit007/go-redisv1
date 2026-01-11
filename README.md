@@ -28,8 +28,11 @@ Tested with `redis-benchmark` on Apple M-series:
 ## 🐳 Quick Start (Docker)
 
 ```bash
-# Clone and run
-git clone https://github.com/anmit007/go-redis.git
+# Option 1: Pull from Docker Hub (fastest)
+docker run -d -p 7379:7379 anmitdev/go-redis:latest
+
+# Option 2: Clone and run with docker-compose
+git clone https://github.com/anmitdev/go-redis.git
 cd go-redis
 docker-compose up -d
 
